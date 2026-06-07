@@ -17,8 +17,8 @@ const LABEL_FERIES = {
 const UTILISATEURS_INIT = [
   { id:1, nom:"Tiffany Astride",   email:"tastride@test.com",   motdepasse:"1234", poste:"Chargée RH",              service:"RH",        role:"rh",            dateEmbauche:"2024-02-01" },
   { id:2, nom:"Cindy Fernandez",   email:"cfernandez@test.com", motdepasse:"1234", poste:"Responsable de site",     service:"Direction", role:"manager",       dateEmbauche:"2022-06-15" },
-  { id:3, nom:"Jason Fonteny",     email:"jfonteny@test.com",   motdepasse:"1234", poste:"DRH Groupe",              service:"Direction", role:"direction",     dateEmbauche:"2020-01-10" },
-  { id:4, nom:"Kawtar Boujia",     email:"kboujia@test.com",    motdepasse:"1234", poste:"Assistante RH",           service:"RH",        role:"collaborateur", dateEmbauche:"2023-09-01" },
+  { id:3, nom:"fBoss",     email:"fboss@test.com",   motdepasse:"1234", poste:"DRH Groupe",              service:"Direction", role:"direction",     dateEmbauche:"2020-01-10" },
+  { id:4, nom:"Fatem zara",     email:"fzara@test.com",    motdepasse:"1234", poste:"Assistante RH",           service:"RH",        role:"collaborateur", dateEmbauche:"2023-09-01" },
   { id:5, nom:"Mehdi Alaoui",      email:"malaoui@test.com",    motdepasse:"1234", poste:"Conseiller Commercial",   service:"Commercial",role:"collaborateur", dateEmbauche:"2024-01-15" },
   { id:6, nom:"Sara El Fassi",     email:"selfassi@test.com",   motdepasse:"1234", poste:"Conseillère Commerciale", service:"Commercial",role:"collaborateur", dateEmbauche:"2023-03-20" },
   { id:7, nom:"Youssef Benali",    email:"ybenali@test.com",    motdepasse:"1234", poste:"Conseiller Jr",           service:"Commercial",role:"collaborateur", dateEmbauche:"2025-03-01" },
