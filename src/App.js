@@ -16,9 +16,9 @@ const LABEL_FERIES = {
 // ─── UTILISATEURS ─────────────────────────────────────────────────────────────
 const UTILISATEURS_INIT = [
   { id:1, nom:"Tiffany Astride",   email:"tastride@test.com",   motdepasse:"1234", poste:"Chargée RH",              service:"RH",        role:"rh",            dateEmbauche:"2024-02-01" },
-  { id:2, nom:"Cindy Fernandez",   email:"cfernandez@test.com", motdepasse:"1234", poste:"Responsable de site",     service:"Direction", role:"manager",       dateEmbauche:"2022-06-15" },
-  { id:3, nom:"fBoss",     email:"fboss@test.com",   motdepasse:"1234", poste:"DRH Groupe",              service:"Direction", role:"direction",     dateEmbauche:"2020-01-10" },
-  { id:4, nom:"Fatem zara",     email:"fzara@test.com",    motdepasse:"1234", poste:"Assistante RH",           service:"RH",        role:"collaborateur", dateEmbauche:"2023-09-01" },
+  { id:2, nom:"Cindy Fernandez",   email:"cfernandez@test.com", motdepasse:"1234", poste:"Responsable Commercial",     service:"Direction", role:"manager",       dateEmbauche:"2022-06-15" },
+  { id:3, nom:"DRH Groupe",     email:"jfonteny@test.com",   motdepasse:"1234", poste:"DRH Groupe",              service:"Direction", role:"direction",     dateEmbauche:"2020-01-10" },
+  { id:4, nom:"Fatem Zara",     email:"kboujia@test.com",    motdepasse:"1234", poste:"Assistante RH",           service:"RH",        role:"collaborateur", dateEmbauche:"2023-09-01" },
   { id:5, nom:"Mehdi Alaoui",      email:"malaoui@test.com",    motdepasse:"1234", poste:"Conseiller Commercial",   service:"Commercial",role:"collaborateur", dateEmbauche:"2024-01-15" },
   { id:6, nom:"Sara El Fassi",     email:"selfassi@test.com",   motdepasse:"1234", poste:"Conseillère Commerciale", service:"Commercial",role:"collaborateur", dateEmbauche:"2023-03-20" },
   { id:7, nom:"Youssef Benali",    email:"ybenali@test.com",    motdepasse:"1234", poste:"Conseiller Jr",           service:"Commercial",role:"collaborateur", dateEmbauche:"2025-03-01" },
@@ -533,34 +533,327 @@ function DemandesAdmin({user,demandes,utilisateurs,onSoumettre,onAction}){
 
 // ─── PLANNING ─────────────────────────────────────────────────────────────────
 function Planning({conges,utilisateurs}){
-  const today=new Date(); const [mois,setMois]=useState(today.getMonth()); const [annee,setAnnee]=useState(today.getFullYear());
-  const daysInMonth=new Date(annee,mois+1,0).getDate(); const days=Array.from({length:daysInMonth},(_,i)=>i+1);
-  const validees=conges.filter(c=>c.statut==="validee");
+  const today=new Date();
+  const [mois,setMois]=useState(today.getMonth());
+  const [annee,setAnnee]=useState(today.getFullYear());
+  const [vue,setVue]=useState("gantt"); // gantt | liste | alertes | service
+  const [serviceFiltre,setServiceFiltre]=useState("tous");
+  const [tooltip,setTooltip]=useState(null);
+
+  const daysInMonth=new Date(annee,mois+1,0).getDate();
+  const days=Array.from({length:daysInMonth},(_,i)=>i+1);
   const moisLabels=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
-  function getConge(userId,day){ const iso=`${annee}-${String(mois+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`; return validees.find(c=>c.userId===userId&&iso>=c.dateDebut&&iso<=c.dateFin); }
+  const services=["tous",...new Set(utilisateurs.map(u=>u.service))];
+
+  // Tous les congés visibles (validés + en attente)
+  const congesVisibles=conges.filter(c=>["validee","en_attente"].includes(c.statut));
+  const congesValides=conges.filter(c=>c.statut==="validee");
+
+  const collabsFiltres=serviceFiltre==="tous"?utilisateurs:utilisateurs.filter(u=>u.service===serviceFiltre);
+
+  function getCongesDuJour(userId,day){
+    const iso=`${annee}-${String(mois+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    return congesVisibles.filter(c=>c.userId===userId&&iso>=c.dateDebut&&iso<=c.dateFin);
+  }
   function isFerie(day){ return JOURS_FERIES.includes(`${annee}-${String(mois+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`); }
+  function isToday(day){ return annee===today.getFullYear()&&mois===today.getMonth()&&day===today.getDate(); }
+
+  // Compter absents par jour
+  function absentsParJour(day){
+    return collabsFiltres.filter(u=>getCongesDuJour(u.id,day).length>0).length;
+  }
+
+  // Départs ce mois (congés qui commencent ce mois)
+  const departsduMois=congesVisibles
+    .filter(c=>{
+      const debut=new Date(c.dateDebut);
+      return debut.getMonth()===mois&&debut.getFullYear()===annee;
+    })
+    .sort((a,b)=>new Date(a.dateDebut)-new Date(b.dateDebut));
+
+  // Alertes : jours avec beaucoup d'absences (>30% de l'effectif)
+  const alertes=days
+    .filter(d=>!isWeekend(new Date(annee,mois,d))&&!isFerie(d))
+    .map(d=>({ jour:d, nb:absentsParJour(d), pct:Math.round((absentsParJour(d)/Math.max(collabsFiltres.length,1))*100) }))
+    .filter(d=>d.pct>=30)
+    .sort((a,b)=>b.nb-a.nb);
+
+  // Vue par service : chevauchements
+  const parService=services.filter(s=>s!=="tous").map(s=>{
+    const membres=utilisateurs.filter(u=>u.service===s);
+    const congesService=departsduMois.filter(c=>membres.find(u=>u.id===c.userId));
+    return { service:s, membres:membres.length, conges:congesService };
+  });
+
   return(
     <div>
-      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:20}}>
-        <Btn small ghost onClick={()=>{if(mois===0){setMois(11);setAnnee(a=>a-1)}else setMois(m=>m-1)}}>◀</Btn>
-        <span style={{fontSize:16,fontWeight:700,color:"#0f2444",minWidth:160,textAlign:"center"}}>{moisLabels[mois]} {annee}</span>
-        <Btn small ghost onClick={()=>{if(mois===11){setMois(0);setAnnee(a=>a+1)}else setMois(m=>m+1)}}>▶</Btn>
+      {/* HEADER */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:12}}>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <Btn small ghost onClick={()=>{if(mois===0){setMois(11);setAnnee(a=>a-1)}else setMois(m=>m-1)}}>◀</Btn>
+          <span style={{fontSize:16,fontWeight:700,color:"#0f2444",minWidth:170,textAlign:"center"}}>{moisLabels[mois]} {annee}</span>
+          <Btn small ghost onClick={()=>{if(mois===11){setMois(0);setAnnee(a=>a+1)}else setMois(m=>m+1)}}>▶</Btn>
+          <Btn small ghost onClick={()=>{setMois(today.getMonth());setAnnee(today.getFullYear());}}>Aujourd'hui</Btn>
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {[{v:"gantt",l:"📅 Planning",},{v:"liste",l:"📋 Départs",},{v:"alertes",l:`⚠️ Alertes (${alertes.length})`,},{v:"service",l:"🏢 Par service",}].map(b=>(
+            <button key={b.v} onClick={()=>setVue(b.v)} style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${vue===b.v?"#1e3a5f":"#e2e8f0"}`,fontFamily:"inherit",cursor:"pointer",fontSize:12,fontWeight:600,background:vue===b.v?"#1e3a5f":"#fff",color:vue===b.v?"#fff":"#64748b"}}>{b.l}</button>
+          ))}
+          <select value={serviceFiltre} onChange={e=>setServiceFiltre(e.target.value)} style={{padding:"7px 12px",borderRadius:20,border:"1.5px solid #e2e8f0",fontSize:12,fontFamily:"inherit",background:"#fff"}}>
+            {services.map(s=><option key={s} value={s}>{s==="tous"?"Tous les services":s}</option>)}
+          </select>
+        </div>
       </div>
-      <Card style={{padding:0,overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-          <thead><tr style={{background:"#f8fafc"}}>
-            <th style={{padding:"10px 14px",textAlign:"left",fontWeight:700,color:"#475569",borderBottom:"2px solid #e2e8f0",minWidth:140}}>Collaborateur</th>
-            {days.map(d=>{ const dt=new Date(annee,mois,d); const isWE=isWeekend(dt); const iF=isFerie(d); return <th key={d} style={{padding:"4px 2px",textAlign:"center",fontWeight:600,minWidth:28,color:isWE||iF?"#cbd5e1":"#64748b",background:iF?"#fefce8":isWE?"#f8fafc":"transparent",borderBottom:"2px solid #e2e8f0"}}><div style={{fontSize:9,color:"#94a3b8"}}>{["Di","Lu","Ma","Me","Je","Ve","Sa"][dt.getDay()]}</div><div>{d}</div>{iF&&<div style={{fontSize:9,color:"#b45309"}}>F</div>}</th>; })}
-          </tr></thead>
-          <tbody>{utilisateurs.map((u,i)=>(
-            <tr key={u.id} style={{background:i%2===0?"#fff":"#fafafa"}}>
-              <td style={{padding:"7px 14px",borderBottom:"1px solid #f1f5f9",whiteSpace:"nowrap"}}><div style={{display:"flex",alignItems:"center",gap:8}}><Avatar nom={u.nom} size={24}/><span style={{fontWeight:600,color:"#374151",fontSize:12}}>{u.nom.split(" ")[0]} {u.nom.split(" ")[1]?.[0]}.</span></div></td>
-              {days.map(d=>{ const conge=getConge(u.id,d); const type=conge?TYPES_CONGE.find(t=>t.code===conge.type):null; const isWE=isWeekend(new Date(annee,mois,d)); return <td key={d} style={{textAlign:"center",padding:"3px 2px",background:conge?type?.couleur+"25":isFerie(d)?"#fefce8":isWE?"#f8fafc":"transparent",borderBottom:"1px solid #f1f5f9"}}>{conge&&<div style={{width:20,height:20,borderRadius:4,background:type?.couleur,margin:"auto"}}/>}</td>; })}
-            </tr>
-          ))}</tbody>
-        </table>
-        <div style={{display:"flex",gap:16,padding:"12px 16px",borderTop:"1px solid #f1f5f9",flexWrap:"wrap"}}>{TYPES_CONGE.map(t=><div key={t.code} style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#64748b"}}><div style={{width:12,height:12,borderRadius:3,background:t.couleur}}/>{t.icon} {t.label}</div>)}</div>
-      </Card>
+
+      {/* INDICATEURS RAPIDES */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:20}}>
+        {[
+          {label:"Absents ce mois",val:new Set(departsduMois.map(c=>c.userId)).size,icon:"🏖️",color:"#f97316",bg:"#fff7ed"},
+          {label:"Jours max simultanés",val:Math.max(0,...days.map(d=>absentsParJour(d))),icon:"👥",color:"#ef4444",bg:"#fef2f2"},
+          {label:"Jours d'alerte (≥30%)",val:alertes.length,icon:"⚠️",color:"#b45309",bg:"#fefce8"},
+          {label:"En attente validation",val:conges.filter(c=>c.statut==="en_attente"&&new Date(c.dateDebut).getMonth()===mois&&new Date(c.dateDebut).getFullYear()===annee).length,icon:"⏳",color:"#6366f1",bg:"#eef2ff"},
+        ].map((s,i)=>(
+          <Card key={i} style={{padding:"14px 18px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontSize:28,fontWeight:900,color:s.color}}>{s.val}</div>
+                <div style={{fontSize:12,color:"#64748b",marginTop:2}}>{s.label}</div>
+              </div>
+              <div style={{width:40,height:40,borderRadius:10,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{s.icon}</div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── VUE GANTT ── */}
+      {vue==="gantt"&&(
+        <Card style={{padding:0,overflowX:"auto"}}>
+          <div style={{padding:"14px 16px",borderBottom:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#0f2444"}}>Planning des absences — {moisLabels[mois]} {annee}</div>
+            <div style={{fontSize:12,color:"#64748b"}}>🟩 Validé · 🟧 En attente · F = Férié</div>
+          </div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+            <thead>
+              <tr style={{background:"#f8fafc"}}>
+                <th style={{padding:"10px 14px",textAlign:"left",fontWeight:700,color:"#475569",borderBottom:"2px solid #e2e8f0",minWidth:150,position:"sticky",left:0,background:"#f8fafc",zIndex:2}}>Collaborateur</th>
+                {days.map(d=>{
+                  const dt=new Date(annee,mois,d); const isWE=isWeekend(dt); const iF=isFerie(d); const isTod=isToday(d);
+                  const nbAbsents=absentsParJour(d); const alerte=!isWE&&!iF&&nbAbsents/Math.max(collabsFiltres.length,1)>=0.3;
+                  return(
+                    <th key={d} style={{padding:"3px 1px",textAlign:"center",fontWeight:600,minWidth:26,color:isWE||iF?"#cbd5e1":"#64748b",background:isTod?"#fef3c7":alerte?"#fef2f2":iF?"#fefce8":isWE?"#f8fafc":"transparent",borderBottom:"2px solid #e2e8f0",borderLeft:isTod?"2px solid #f59e0b":"none",position:"relative"}}>
+                      <div style={{fontSize:8,color:"#94a3b8"}}>{["Di","Lu","Ma","Me","Je","Ve","Sa"][dt.getDay()]}</div>
+                      <div style={{fontWeight:isTod?900:600,color:isTod?"#b45309":undefined}}>{d}</div>
+                      {iF&&<div style={{fontSize:8,color:"#b45309"}}>F</div>}
+                      {alerte&&!iF&&!isWE&&<div style={{fontSize:8,color:"#dc2626"}}>⚠</div>}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {collabsFiltres.map((u,i)=>(
+                <tr key={u.id} style={{background:i%2===0?"#fff":"#fafafa"}}>
+                  <td style={{padding:"6px 14px",borderBottom:"1px solid #f1f5f9",whiteSpace:"nowrap",position:"sticky",left:0,background:i%2===0?"#fff":"#fafafa",zIndex:1}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <Avatar nom={u.nom} size={22}/>
+                      <div>
+                        <div style={{fontWeight:600,color:"#374151",fontSize:11}}>{u.nom.split(" ")[0]} {u.nom.split(" ")[1]?.[0]}.</div>
+                        <div style={{fontSize:9,color:"#94a3b8"}}>{u.service}</div>
+                      </div>
+                    </div>
+                  </td>
+                  {days.map(d=>{
+                    const congesJour=getCongesDuJour(u.id,d);
+                    const c=congesJour[0];
+                    const type=c?TYPES_CONGE.find(t=>t.code===c.type):null;
+                    const isWE=isWeekend(new Date(annee,mois,d));
+                    const isTod=isToday(d);
+                    return(
+                      <td key={d}
+                        onMouseEnter={()=>c&&setTooltip({conge:c,user:u,type})}
+                        onMouseLeave={()=>setTooltip(null)}
+                        style={{textAlign:"center",padding:"2px 1px",background:c?(c.statut==="validee"?type?.couleur+"30":type?.couleur+"15"):isFerie(d)?"#fefce8":isWE?"#f8fafc":"transparent",borderBottom:"1px solid #f1f5f9",borderLeft:isTod?"2px solid #f59e0b":"none",cursor:c?"pointer":"default"}}>
+                        {c&&(
+                          <div style={{width:18,height:18,borderRadius:3,background:c.statut==="validee"?type?.couleur:type?.couleur+"80",margin:"auto",border:c.statut==="en_attente"?`2px dashed ${type?.couleur}`:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8}}>
+                            {c.statut==="en_attente"&&"?"}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {/* Ligne récap absents par jour */}
+              <tr style={{background:"#f8fafc",borderTop:"2px solid #e2e8f0"}}>
+                <td style={{padding:"6px 14px",fontSize:11,fontWeight:700,color:"#475569",position:"sticky",left:0,background:"#f8fafc"}}>Total absents/jour</td>
+                {days.map(d=>{
+                  const nb=absentsParJour(d); const isWE=isWeekend(new Date(annee,mois,d)); const iF=isFerie(d);
+                  const pct=nb/Math.max(collabsFiltres.length,1);
+                  return(
+                    <td key={d} style={{textAlign:"center",padding:"4px 1px",background:isWE||iF?"#f8fafc":pct>=0.3?"#fef2f2":pct>=0.2?"#fff7ed":"transparent"}}>
+                      {nb>0&&<span style={{fontSize:10,fontWeight:800,color:pct>=0.3?"#dc2626":pct>=0.2?"#c2410c":"#475569"}}>{nb}</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+          <div style={{display:"flex",gap:16,padding:"10px 16px",borderTop:"1px solid #f1f5f9",flexWrap:"wrap",alignItems:"center"}}>
+            {TYPES_CONGE.map(t=><div key={t.code} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748b"}}><div style={{width:11,height:11,borderRadius:2,background:t.couleur}}/>{t.icon} {t.label}</div>)}
+            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748b"}}><div style={{width:11,height:11,borderRadius:2,border:"2px dashed #94a3b8"}}>?</div>En attente</div>
+            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#b45309"}}><div style={{width:11,height:11,borderRadius:2,background:"#fef3c7",border:"2px solid #f59e0b"}}/> Aujourd'hui</div>
+            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#dc2626"}}><span>⚠</span>≥30% absents</div>
+          </div>
+        </Card>
+      )}
+
+      {/* ── VUE LISTE DÉPARTS ── */}
+      {vue==="liste"&&(
+        <Card>
+          <div style={{fontWeight:700,fontSize:14,color:"#0f2444",marginBottom:16}}>📋 Calendrier des départs — {moisLabels[mois]} {annee}</div>
+          {departsduMois.length===0?(
+            <div style={{textAlign:"center",padding:"40px 0",color:"#94a3b8"}}><div style={{fontSize:36,marginBottom:8}}>🎉</div>Aucun départ prévu ce mois.</div>
+          ):(
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead>
+                  <tr style={{background:"#f8fafc"}}>
+                    {["Collaborateur","Service","Type","Départ","Retour","Durée","Statut","Motif"].map(h=>(
+                      <th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:700,color:"#475569",borderBottom:"2px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {departsduMois.map((c,i)=>{
+                    const u=utilisateurs.find(x=>x.id===c.userId);
+                    const type=TYPES_CONGE.find(t=>t.code===c.type);
+                    const retourDate=new Date(c.dateFin); retourDate.setDate(retourDate.getDate()+1);
+                    const estFutur=new Date(c.dateDebut)>today;
+                    const estEnCours=new Date(c.dateDebut)<=today&&new Date(c.dateFin)>=today;
+                    return(
+                      <tr key={c.id} style={{background:estEnCours?"#f0fdf4":i%2===0?"#fff":"#fafafa",borderBottom:"1px solid #f1f5f9"}}>
+                        <td style={{padding:"10px 12px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <Avatar nom={u?.nom||"?"} size={28}/>
+                            <div>
+                              <div style={{fontWeight:700,color:"#0f2444",fontSize:13}}>{u?.nom}</div>
+                              <div style={{fontSize:11,color:"#94a3b8"}}>{u?.poste}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{padding:"10px 12px",color:"#64748b",fontSize:12}}>{u?.service}</td>
+                        <td style={{padding:"10px 12px"}}><span style={{color:type?.couleur,fontWeight:600}}>{type?.icon} {type?.label}</span></td>
+                        <td style={{padding:"10px 12px",fontWeight:700,color:"#0f2444",whiteSpace:"nowrap"}}>
+                          {formatDate(c.dateDebut)}
+                          {estFutur&&<span style={{marginLeft:6,fontSize:10,background:"#eff6ff",color:"#1d4ed8",padding:"2px 6px",borderRadius:10,fontWeight:600}}>À venir</span>}
+                          {estEnCours&&<span style={{marginLeft:6,fontSize:10,background:"#f0fdf4",color:"#16a34a",padding:"2px 6px",borderRadius:10,fontWeight:600}}>En cours</span>}
+                        </td>
+                        <td style={{padding:"10px 12px",color:"#374151",whiteSpace:"nowrap"}}>{formatDate(c.dateFin)}</td>
+                        <td style={{padding:"10px 12px"}}><span style={{fontWeight:800,color:"#1e3a5f"}}>{c.jours}j</span></td>
+                        <td style={{padding:"10px 12px"}}><Badge statut={c.statut}/></td>
+                        <td style={{padding:"10px 12px",color:"#64748b",fontSize:12,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.motif||"—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ── VUE ALERTES ── */}
+      {vue==="alertes"&&(
+        <div>
+          <Card style={{marginBottom:16,background:"#fefce8",border:"1px solid #fde68a"}}>
+            <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+              <span style={{fontSize:28}}>⚠️</span>
+              <div>
+                <div style={{fontWeight:700,fontSize:14,color:"#92400e",marginBottom:4}}>Détection des jours critiques — {moisLabels[mois]} {annee}</div>
+                <div style={{fontSize:13,color:"#78350f"}}>Les jours ci-dessous ont <strong>30% ou plus</strong> de l'effectif absent. La production doit anticiper ces périodes pour maintenir la continuité de service.</div>
+              </div>
+            </div>
+          </Card>
+          {alertes.length===0?(
+            <Card><div style={{textAlign:"center",padding:"40px 0",color:"#94a3b8"}}><div style={{fontSize:36,marginBottom:8}}>✅</div>Aucun jour critique ce mois. La production peut s'organiser sereinement.</div></Card>
+          ):alertes.map(a=>{
+            const absentsJour=collabsFiltres.filter(u=>getCongesDuJour(u.id,a.jour).length>0);
+            const dt=new Date(annee,mois,a.jour);
+            return(
+              <Card key={a.jour} style={{marginBottom:12,borderLeft:`4px solid ${a.pct>=50?"#dc2626":"#f97316"}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                    <div style={{width:50,height:50,borderRadius:12,background:a.pct>=50?"#fef2f2":"#fff7ed",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                      <div style={{fontSize:20,fontWeight:900,color:a.pct>=50?"#dc2626":"#c2410c",lineHeight:1}}>{a.jour}</div>
+                      <div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase"}}>{moisLabels[mois].slice(0,3)}</div>
+                    </div>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:15,color:"#0f2444",textTransform:"capitalize"}}>{dt.toLocaleDateString("fr-FR",{weekday:"long"})} {a.jour} {moisLabels[mois]}</div>
+                      <div style={{fontSize:13,color:a.pct>=50?"#dc2626":"#c2410c",fontWeight:600}}>{a.nb} absent{a.nb>1?"s":""} sur {collabsFiltres.length} — {a.pct}% de l'effectif</div>
+                    </div>
+                  </div>
+                  <span style={{fontSize:14,fontWeight:800,padding:"6px 16px",borderRadius:20,background:a.pct>=50?"#fef2f2":"#fff7ed",color:a.pct>=50?"#dc2626":"#c2410c"}}>🔴 {a.pct>=50?"CRITIQUE":"ATTENTION"}</span>
+                </div>
+                <div style={{background:"#f8fafc",borderRadius:10,padding:"10px 14px"}}>
+                  <div style={{fontSize:12,color:"#475569",fontWeight:600,marginBottom:8}}>Collaborateurs absents ce jour :</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {absentsJour.map(u=>{
+                      const c=getCongesDuJour(u.id,a.jour)[0];
+                      const type=TYPES_CONGE.find(t=>t.code===c?.type);
+                      return(
+                        <div key={u.id} style={{display:"flex",alignItems:"center",gap:6,background:"#fff",padding:"4px 10px",borderRadius:20,border:"1px solid #e2e8f0",fontSize:12}}>
+                          <Avatar nom={u.nom} size={20}/>
+                          <span style={{fontWeight:600,color:"#374151"}}>{u.nom.split(" ")[0]}</span>
+                          <span style={{color:type?.couleur,fontSize:10}}>{type?.icon}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── VUE PAR SERVICE ── */}
+      {vue==="service"&&(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          {parService.map(s=>(
+            <Card key={s.service}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:15,color:"#0f2444"}}>🏢 {s.service}</div>
+                  <div style={{fontSize:12,color:"#64748b"}}>{s.membres} collaborateur{s.membres>1?"s":""}</div>
+                </div>
+                <span style={{fontSize:20,fontWeight:900,color:"#f97316",background:"#fff7ed",padding:"4px 14px",borderRadius:20}}>{s.conges.length} départ{s.conges.length>1?"s":""}</span>
+              </div>
+              {s.conges.length===0?(
+                <div style={{fontSize:13,color:"#94a3b8",textAlign:"center",padding:"14px 0"}}>✅ Aucun départ ce mois</div>
+              ):s.conges.map(c=>{
+                const u=utilisateurs.find(x=>x.id===c.userId);
+                const type=TYPES_CONGE.find(t=>t.code===c.type);
+                const estEnCours=new Date(c.dateDebut)<=today&&new Date(c.dateFin)>=today;
+                return(
+                  <div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",borderRadius:8,background:estEnCours?"#f0fdf4":"#f8fafc",marginBottom:6,border:estEnCours?"1px solid #bbf7d0":"1px solid transparent"}}>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <Avatar nom={u?.nom||"?"} size={26}/>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:600,color:"#0f2444"}}>{u?.nom?.split(" ")[0]}</div>
+                        <div style={{fontSize:11,color:"#64748b"}}>{type?.icon} {formatDate(c.dateDebut)} → {formatDate(c.dateFin)} · {c.jours}j</div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}}>
+                      <Badge statut={c.statut}/>
+                      {estEnCours&&<span style={{fontSize:10,color:"#16a34a",fontWeight:700}}>En cours</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -680,3 +973,4 @@ export default function App(){
     </div>
   );
 }
+
