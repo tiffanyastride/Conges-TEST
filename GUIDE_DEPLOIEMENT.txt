@@ -1,0 +1,117 @@
+# 📋 GUIDE DE DÉPLOIEMENT CONGISPRO SUR VERCEL
+# OVA Casablanca — À LIRE AVANT DE COMMENCER
+
+=======================================================
+ÉTAPE 0 — AVANT TOUT : MODIFIER LES UTILISATEURS
+=======================================================
+
+Ouvre le fichier src/App.js avec Word (Fichier > Ouvrir > Tous les fichiers)
+Cherche le bloc UTILISATEURS_INIT (vers la ligne 30)
+Remplace chaque ligne par les vraies informations :
+  - nom : "Prénom Nom réel"
+  - email : "prenom.nom@onvousassure.com"  
+  - motdepasse : choisir un vrai mot de passe pour chaque personne
+  - poste : l'intitulé exact du poste
+  - dateEmbauche : "AAAA-MM-JJ" (ex: "2023-05-15")
+  - role : "collaborateur" / "rh" / "manager" / "direction"
+
+SAUVEGARDE en "Texte brut" depuis Word, puis renomme en .js
+
+=======================================================
+ÉTAPE 1 — CRÉER UN COMPTE GITHUB (gratuit, 2 min)
+=======================================================
+
+1. Va sur https://github.com
+2. Clique "Sign up"
+3. Entre ton email, un mot de passe, un pseudo
+4. Vérifie ton email (lien de confirmation)
+5. Compte créé ✅
+
+=======================================================
+ÉTAPE 2 — METTRE LE PROJET SUR GITHUB
+=======================================================
+
+1. Sur GitHub, clique le bouton vert "New" (nouveau dépôt)
+2. Nom du dépôt : congispro-ova
+3. Laisse tout par défaut, clique "Create repository"
+4. Clique "uploading an existing file" (lien bleu au milieu)
+5. Glisse-dépose TOUT le dossier congisPro (ou sélectionne tous les fichiers)
+6. Structure à uploader :
+   ├── package.json
+   ├── public/
+   │   └── index.html
+   └── src/
+       ├── index.js
+       └── App.js
+7. Clique "Commit changes" en bas → ✅ Projet en ligne
+
+=======================================================
+ÉTAPE 3 — DÉPLOYER SUR VERCEL (gratuit, 3 min)
+=======================================================
+
+1. Va sur https://vercel.com
+2. Clique "Sign Up" → choisis "Continue with GitHub"
+3. Autorise Vercel à accéder à GitHub
+4. Tu arrives sur le dashboard Vercel
+5. Clique "New Project"
+6. Tu vois ton dépôt "congispro-ova" → clique "Import"
+7. Vercel détecte React automatiquement → laisse tout par défaut
+8. Clique "Deploy" → attends 2 minutes
+9. Tu reçois une URL du type : https://congispro-ova.vercel.app ✅
+
+=======================================================
+ÉTAPE 4 — PARTAGER L'APPLICATION
+=======================================================
+
+Cette URL est ton application en ligne.
+Partage-la à tous tes collaborateurs par email ou WhatsApp.
+Accessible depuis n'importe quel navigateur, PC ou téléphone.
+Aucune installation requise pour les utilisateurs.
+
+=======================================================
+ÉTAPE 5 — METTRE À JOUR L'APPLICATION
+=======================================================
+
+Si tu veux changer quelque chose (ajouter un collaborateur, etc.) :
+1. Modifie le fichier App.js
+2. Retourne sur GitHub → ton dépôt → App.js
+3. Clique l'icône crayon (modifier)
+4. Colle le nouveau contenu
+5. Clique "Commit changes"
+6. Vercel redéploie automatiquement en 2 minutes ✅
+
+=======================================================
+⚠️  IMPORTANT — SÉCURITÉ
+=======================================================
+
+- Ne jamais mettre des mots de passe trop simples (évite "1234")
+- Cette version stocke les données en mémoire (elles sont perdues au rechargement)
+- Pour une vraie base de données persistante, il faudra une version backend
+- Le lien Vercel est public : ajouter un mot de passe à la page de connexion suffit
+  pour protéger l'accès (ce qui est déjà le cas avec les emails/mots de passe)
+
+=======================================================
+EN CAS DE PROBLÈME
+=======================================================
+
+Erreur "Build failed" sur Vercel :
+→ Vérifier que tous les fichiers sont bien uploadés sur GitHub
+→ Vérifier que le fichier package.json est à la racine du dépôt
+
+L'app ne s'ouvre pas :
+→ Attendre 2-3 minutes après le déploiement
+→ Vider le cache du navigateur (Ctrl+F5)
+
+Un collaborateur ne peut pas se connecter :
+→ Vérifier l'email dans UTILISATEURS_INIT (majuscules/espaces)
+→ Vérifier le mot de passe (sensible à la casse)
+
+=======================================================
+CONTACTS UTILES
+=======================================================
+
+GitHub : https://github.com
+Vercel  : https://vercel.com
+Support Vercel : https://vercel.com/support
+
+Préparé pour OVA Casablanca — CongisPro v2
