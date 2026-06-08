@@ -545,8 +545,8 @@ function Planning({conges,utilisateurs}){
   const moisLabels=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
   const services=["tous",...new Set(utilisateurs.map(u=>u.service))];
 
-  // Tous les congés visibles (validés + en attente)
-  const congesVisibles=conges.filter(c=>["validee","en_attente"].includes(c.statut));
+  // Tous les congés visibles (validés + en attente + refusés)
+  const congesVisibles=conges.filter(c=>["validee","en_attente","refusee"].includes(c.statut));
   const congesValides=conges.filter(c=>c.statut==="validee");
 
   const collabsFiltres=serviceFiltre==="tous"?utilisateurs:utilisateurs.filter(u=>u.service===serviceFiltre);
@@ -672,10 +672,26 @@ function Planning({conges,utilisateurs}){
                       <td key={d}
                         onMouseEnter={()=>c&&setTooltip({conge:c,user:u,type})}
                         onMouseLeave={()=>setTooltip(null)}
-                        style={{textAlign:"center",padding:"2px 1px",background:c?(c.statut==="validee"?type?.couleur+"30":type?.couleur+"15"):isFerie(d)?"#fefce8":isWE?"#f8fafc":"transparent",borderBottom:"1px solid #f1f5f9",borderLeft:isTod?"2px solid #f59e0b":"none",cursor:c?"pointer":"default"}}>
+                        style={{textAlign:"center",padding:"2px 1px",
+                          background:c
+                            ? c.statut==="validee"  ? type?.couleur+"30"
+                            : c.statut==="en_attente"? "#fff7ed"
+                            : c.statut==="refusee"  ? "#fef2f2"
+                            : "transparent"
+                            : isFerie(d)?"#fefce8":isWE?"#f8fafc":"transparent",
+                          borderBottom:"1px solid #f1f5f9",
+                          borderLeft:isTod?"2px solid #f59e0b":"none",
+                          cursor:c?"pointer":"default"}}>
                         {c&&(
-                          <div style={{width:18,height:18,borderRadius:3,background:c.statut==="validee"?type?.couleur:type?.couleur+"80",margin:"auto",border:c.statut==="en_attente"?`2px dashed ${type?.couleur}`:"none",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8}}>
+                          <div title={`${u.nom} · ${type?.label} · ${c.statut==="validee"?"✅ Validé":c.statut==="en_attente"?"⏳ En attente":"❌ Refusé"}`} style={{
+                            width:18,height:18,borderRadius:3,margin:"auto",
+                            display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,
+                            ...(c.statut==="validee"   ? {background:type?.couleur, color:"#fff"} : {}),
+                            ...(c.statut==="en_attente"? {background:"transparent", border:`2px dashed #f97316`, color:"#f97316"} : {}),
+                            ...(c.statut==="refusee"   ? {background:"#fecaca", border:`2px solid #ef4444`, color:"#dc2626"} : {}),
+                          }}>
                             {c.statut==="en_attente"&&"?"}
+                            {c.statut==="refusee"&&"✕"}
                           </div>
                         )}
                       </td>
@@ -700,7 +716,10 @@ function Planning({conges,utilisateurs}){
           </table>
           <div style={{display:"flex",gap:16,padding:"10px 16px",borderTop:"1px solid #f1f5f9",flexWrap:"wrap",alignItems:"center"}}>
             {TYPES_CONGE.map(t=><div key={t.code} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748b"}}><div style={{width:11,height:11,borderRadius:2,background:t.couleur}}/>{t.icon} {t.label}</div>)}
-            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748b"}}><div style={{width:11,height:11,borderRadius:2,border:"2px dashed #94a3b8"}}>?</div>En attente</div>
+            <div style={{width:"100%",height:1,background:"#f1f5f9",margin:"4px 0"}}/>
+            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#15803d",fontWeight:600}}><div style={{width:14,height:14,borderRadius:2,background:"#22c55e",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:8}}>✓</div>Validé</div>
+            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#c2410c",fontWeight:600}}><div style={{width:14,height:14,borderRadius:2,border:"2px dashed #f97316",display:"flex",alignItems:"center",justifyContent:"center",color:"#f97316",fontSize:9,fontWeight:800}}>?</div>En attente</div>
+            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#b91c1c",fontWeight:600}}><div style={{width:14,height:14,borderRadius:2,background:"#fecaca",border:"2px solid #ef4444",display:"flex",alignItems:"center",justifyContent:"center",color:"#dc2626",fontSize:9,fontWeight:800}}>✕</div>Refusé</div>
             <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#b45309"}}><div style={{width:11,height:11,borderRadius:2,background:"#fef3c7",border:"2px solid #f59e0b"}}/> Aujourd'hui</div>
             <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#dc2626"}}><span>⚠</span>≥30% absents</div>
           </div>
@@ -710,15 +729,23 @@ function Planning({conges,utilisateurs}){
       {/* ── VUE LISTE DÉPARTS ── */}
       {vue==="liste"&&(
         <Card>
-          <div style={{fontWeight:700,fontSize:14,color:"#0f2444",marginBottom:16}}>📋 Calendrier des départs — {moisLabels[mois]} {annee}</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#0f2444"}}>📋 Calendrier des absences — {moisLabels[mois]} {annee}</div>
+            <div style={{display:"flex",gap:6}}>
+              {[{v:"tous",l:"Tous",c:"#1e3a5f"},{v:"validee",l:"✅ Validés",c:"#16a34a"},{v:"en_attente",l:"⏳ En attente",c:"#c2410c"},{v:"refusee",l:"❌ Refusés",c:"#dc2626"}].map(f=>{
+                const [statutFiltreListe,setStatutFiltreListe]=[null,null]; // géré dans state local
+                return null; // placeholder remplacé ci-dessous
+              })}
+            </div>
+          </div>
           {departsduMois.length===0?(
-            <div style={{textAlign:"center",padding:"40px 0",color:"#94a3b8"}}><div style={{fontSize:36,marginBottom:8}}>🎉</div>Aucun départ prévu ce mois.</div>
+            <div style={{textAlign:"center",padding:"40px 0",color:"#94a3b8"}}><div style={{fontSize:36,marginBottom:8}}>🎉</div>Aucune absence prévue ce mois.</div>
           ):(
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead>
                   <tr style={{background:"#f8fafc"}}>
-                    {["Collaborateur","Service","Type","Départ","Retour","Durée","Statut","Motif"].map(h=>(
+                    {["Collaborateur","Service","Type","Départ en congés","Retour","Durée","Statut","Motif"].map(h=>(
                       <th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:700,color:"#475569",borderBottom:"2px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
                     ))}
                   </tr>
@@ -727,11 +754,11 @@ function Planning({conges,utilisateurs}){
                   {departsduMois.map((c,i)=>{
                     const u=utilisateurs.find(x=>x.id===c.userId);
                     const type=TYPES_CONGE.find(t=>t.code===c.type);
-                    const retourDate=new Date(c.dateFin); retourDate.setDate(retourDate.getDate()+1);
-                    const estFutur=new Date(c.dateDebut)>today;
                     const estEnCours=new Date(c.dateDebut)<=today&&new Date(c.dateFin)>=today;
+                    const estFutur=new Date(c.dateDebut)>today;
+                    const rowBg=c.statut==="refusee"?"#fef2f2":c.statut==="en_attente"?"#fff7ed":estEnCours?"#f0fdf4":i%2===0?"#fff":"#fafafa";
                     return(
-                      <tr key={c.id} style={{background:estEnCours?"#f0fdf4":i%2===0?"#fff":"#fafafa",borderBottom:"1px solid #f1f5f9"}}>
+                      <tr key={c.id} style={{background:rowBg,borderBottom:"1px solid #f1f5f9",opacity:c.statut==="refusee"?.7:1}}>
                         <td style={{padding:"10px 12px"}}>
                           <div style={{display:"flex",alignItems:"center",gap:8}}>
                             <Avatar nom={u?.nom||"?"} size={28}/>
@@ -743,20 +770,29 @@ function Planning({conges,utilisateurs}){
                         </td>
                         <td style={{padding:"10px 12px",color:"#64748b",fontSize:12}}>{u?.service}</td>
                         <td style={{padding:"10px 12px"}}><span style={{color:type?.couleur,fontWeight:600}}>{type?.icon} {type?.label}</span></td>
-                        <td style={{padding:"10px 12px",fontWeight:700,color:"#0f2444",whiteSpace:"nowrap"}}>
+                        <td style={{padding:"10px 12px",fontWeight:700,color:c.statut==="refusee"?"#94a3b8":"#0f2444",whiteSpace:"nowrap",textDecoration:c.statut==="refusee"?"line-through":"none"}}>
                           {formatDate(c.dateDebut)}
-                          {estFutur&&<span style={{marginLeft:6,fontSize:10,background:"#eff6ff",color:"#1d4ed8",padding:"2px 6px",borderRadius:10,fontWeight:600}}>À venir</span>}
+                          {estFutur&&c.statut!=="refusee"&&<span style={{marginLeft:6,fontSize:10,background:"#eff6ff",color:"#1d4ed8",padding:"2px 6px",borderRadius:10,fontWeight:600}}>À venir</span>}
                           {estEnCours&&<span style={{marginLeft:6,fontSize:10,background:"#f0fdf4",color:"#16a34a",padding:"2px 6px",borderRadius:10,fontWeight:600}}>En cours</span>}
                         </td>
-                        <td style={{padding:"10px 12px",color:"#374151",whiteSpace:"nowrap"}}>{formatDate(c.dateFin)}</td>
-                        <td style={{padding:"10px 12px"}}><span style={{fontWeight:800,color:"#1e3a5f"}}>{c.jours}j</span></td>
+                        <td style={{padding:"10px 12px",color:"#374151",whiteSpace:"nowrap",textDecoration:c.statut==="refusee"?"line-through":"none"}}>{formatDate(c.dateFin)}</td>
+                        <td style={{padding:"10px 12px"}}><span style={{fontWeight:800,color:c.statut==="refusee"?"#94a3b8":"#1e3a5f"}}>{c.jours}j</span></td>
                         <td style={{padding:"10px 12px"}}><Badge statut={c.statut}/></td>
-                        <td style={{padding:"10px 12px",color:"#64748b",fontSize:12,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.motif||"—"}</td>
+                        <td style={{padding:"10px 12px",fontSize:12,maxWidth:160}}>
+                          <div style={{color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.motif||"—"}</div>
+                          {c.commentaireRH&&<div style={{color:"#dc2626",fontSize:11,marginTop:2,fontStyle:"italic"}}>💬 {c.commentaireRH}</div>}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              <div style={{display:"flex",gap:20,padding:"12px 16px",borderTop:"1px solid #f1f5f9",fontSize:12,color:"#64748b",flexWrap:"wrap"}}>
+                <span>🟩 Fond vert = congé en cours</span>
+                <span>🟧 Fond orange = en attente validation</span>
+                <span>🟥 Fond rouge + barré = refusé</span>
+                <span>⬜ Blanc = congé à venir validé</span>
+              </div>
             </div>
           )}
         </Card>
